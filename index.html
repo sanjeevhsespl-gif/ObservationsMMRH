@@ -28,6 +28,7 @@
     <button data-panel="register">Observations</button>
     <button data-panel="map">Map</button>
     <button data-panel="photos">Photos &amp; Closeout</button>
+    <button data-panel="workorders">Work Orders</button>
     <button data-panel="instructions">Instructions</button>
   </nav>
 
@@ -168,6 +169,29 @@
       </div>
     </section>
 
+    <!-- WORK ORDERS (PDF) -->
+    <section id="panel-workorders" class="panel" aria-labelledby="woHeading">
+      <h2 id="woHeading" class="sr-only">PDF work orders</h2>
+      <div id="woLive" class="sr-only" aria-live="polite"></div>
+      <datalist id="woRegisterList"></datalist>
+      <div class="wo-layout">
+        <aside class="card wo-side">
+          <div id="woDropzone" class="wo-dropzone" role="button" tabindex="0" aria-describedby="woDropHint">
+            <strong>Drop PDF work orders here</strong>
+            <span>or press Enter to choose files</span>
+            <small id="woDropHint">Only PDF files up to 20 MB are supported.</small>
+          </div>
+          <input type="file" id="woFileInput" accept="application/pdf,.pdf" multiple hidden />
+          <ul id="woUploadQueue" class="wo-list" aria-label="Uploads"></ul>
+          <div class="toolbar" style="margin:.75rem 0 .4rem"><h3 style="margin:0">Work orders</h3><div class="spacer"></div>
+            <button type="button" class="btn btn-ghost btn-sm" id="woListRefresh">Refresh</button></div>
+          <div id="woListStatus"></div>
+          <ul id="woList" class="wo-list" aria-label="Uploaded work orders"></ul>
+        </aside>
+        <div class="card" id="woEditor"></div>
+      </div>
+    </section>
+
     <!-- INSTRUCTIONS -->
     <section id="panel-instructions" class="panel">
       <div class="card instructions">
@@ -271,6 +295,25 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="woPreviewModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="woPreviewTitle">
+      <header>
+        <h3 id="woPreviewTitle" tabindex="-1">Preview changes</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="woPreviewClose">Close</button>
+      </header>
+      <p id="woPreviewSummary"></p>
+      <ul id="woPreviewChanges" class="wo-list"></ul>
+      <div id="woPreviewError"></div>
+      <div id="woPreviewPages" class="wo-preview-pages"></div>
+      <div class="toolbar" style="margin-top:1rem;margin-bottom:0">
+        <button type="button" class="btn btn-ghost" id="woPreviewBack">Back to editing</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-navy" id="woSaveDraft">Save draft</button>
+        <button type="button" class="btn btn-primary" id="woSubmit">Submit</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <!-- Hidden print/closeout host -->
@@ -285,6 +328,8 @@
   <script src="js/logos-embedded.js"></script>
   <script src="js/store.js"></script>
   <script src="js/export.js"></script>
+  <script src="lib/pdf.min.js"></script>
+  <script src="js/workorders.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
