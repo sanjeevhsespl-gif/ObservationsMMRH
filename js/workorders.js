@@ -9,11 +9,13 @@
   const MAX_SCAN_PAGES = 50;
   const MAX_PDF_FIELDS = 80;
   const MAX_PREVIEW_PAGES = 20;
+  
+  // Restricted strictly to the annotated work order areas in the PDF
   const SECTIONS = [
-    { key: "section:scope", label: "Scope of Work", hint: "Clarifications or changes to the scope" },
-    { key: "section:safety", label: "Safety / HSE Notes", hint: "Permits, PPE, hazards, isolations" },
-    { key: "section:materials", label: "Materials & Parts", hint: "Parts used, shortages, specifications" },
-    { key: "section:completion", label: "Completion Remarks", hint: "Outcome and follow-up actions" },
+    { key: "section:observations", label: "Observations", hint: "Provide first observation of equipment condition, parts found broken, etc.", page: 1 },
+    { key: "section:cause", label: "Cause of Problem", hint: "Identify the probable cause of the problem, where applicable", page: 1 },
+    { key: "section:actions", label: "Actions Taken", hint: "Provide details of work done e.g. parts replaced / repaired, adjusted, serviced", page: 1 },
+    { key: "section:delays", label: "Work Delays", hint: "Provide details of any delays caused by other parties or unexpected circumstances", page: 2 },
   ];
 
   const state = {
@@ -132,7 +134,6 @@
         xhr.ontimeout = () => reject(new Error("The upload timed out. Please retry."));
         xhr.send(blob);
       });
-    // One automatic retry for transient (network / 5xx) failures.
     return attempt().catch((err) => {
       if (err.fatal) throw err;
       onProgress(0);
@@ -166,20 +167,15 @@
   }
 
   function fieldDefs(wo) {
-    const defs = SECTIONS.map((s) => ({ ...s, group: "section", page: null }));
+    const defs = SECTIONS.map((s) => ({ ...s, group: "section" }));
     (state.fields.get(wo.id) || []).forEach((f) => defs.push({ ...f, group: "pdf" }));
     const known = new Set(defs.map((d) => d.key));
-    // Saved comments whose field isn't currently known (e.g. PDF not scanned yet).
     wo.comments.forEach((c) => {
       if (known.has(c.field)) return;
       known.add(c.field);
       defs.push({ key: c.field, label: c.label, page: c.page, group: "other" });
     });
     return defs;
-  }
-  function fieldLabel(wo, key) {
-    const d = fieldDefs(wo).find((f) => f.key === key);
-    return d ? d.label : key;
   }
 
   function changesFor(wo) {
@@ -341,8 +337,8 @@
             "p",
             null,
             state.items.length
-              ? "Select a work order from the list to add comments."
-              : "Upload a PDF work order to add comments and preview changes before saving."
+              ? "Select a work order from the list to add text."
+              : "Upload a PDF work order to fill out annotated areas and preview changes before saving."
           )
         )
       );
@@ -414,7 +410,7 @@
         h("span", { id: "woPageLabel", "aria-live": "polite" }, "Page –"),
         next,
         h("span", { class: "spacer" }),
-        h("label", { class: "wo-toggle", for: "woOverlayToggle" }, toggle, " Show comments on PDF")
+        h("label", { class: "wo-toggle", for: "woOverlayToggle" }, toggle, " Show text on PDF")
       ),
       h("div", { id: "woPageHost", class: "wo-page-host" })
     );
@@ -422,11 +418,11 @@
     const form = h(
       "form",
       { class: "wo-comments", id: "woCommentsForm", novalidate: true, "aria-labelledby": "woCommentsHeading" },
-      h("h4", { id: "woCommentsHeading" }, "Comments"),
+      h("h4", { id: "woCommentsHeading" }, "Annotated Work Order Fields"),
       h(
         "fieldset",
         null,
-        h("legend", null, "Work order sections"),
+        h("legend", null, "Required Work Details"),
         SECTIONS.map((s) => commentField(wo, { ...s, group: "section" }))
       ),
       h("fieldset", { id: "woPdfFields" }),
@@ -554,7 +550,7 @@
   async function deleteWo(wo) {
     const pending = changesFor(wo).length;
     const msg =
-      `Delete "${wo.fileName}"? This permanently removes the PDF and all its saved comments.` +
+      `Delete "${wo.fileName}"? This permanently removes the PDF and all its saved entries.` +
       (pending ? `\n\n${plural(pending, "unsaved change")} will also be lost.` : "");
     if (!confirm(msg)) return;
     try {
@@ -602,7 +598,6 @@
       const p = loadBytes(wo)
         .then((data) => {
           if (!window.pdfjsLib) throw new Error("The PDF viewer library failed to load.");
-          // isEvalSupported:false hardens pdf.js against font-based script injection.
           return pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
         })
         .then((doc) => {
@@ -725,8 +720,8 @@
       layer.append(
         h(
           "aside",
-          { class: "wo-ov-notes", "aria-label": `Comments on page ${n}` },
-          h("strong", null, "Comments"),
+          { class: "wo-ov-notes", "aria-label": `Text on page ${n}` },
+          h("strong", null, "Work Details"),
           notes.map((f) =>
             h("div", { class: "wo-ov-note" + (isChanged(f.key) ? " changed" : "") }, h("b", null, f.label + ": "), values[f.key])
           )
@@ -794,15 +789,15 @@
       );
     }
     if (c.kind === "added") {
-      return h("li", { class: "wo-change added" }, `Comment added to ‘${c.label}’: `, h("ins", null, quote(c.after)));
+      return h("li", { class: "wo-change added" }, `Text added to ‘${c.label}’: `, h("ins", null, quote(c.after)));
     }
     if (c.kind === "removed") {
-      return h("li", { class: "wo-change removed" }, `Comment removed from ‘${c.label}’: `, h("del", null, quote(c.before)));
+      return h("li", { class: "wo-change removed" }, `Text removed from ‘${c.label}’: `, h("del", null, quote(c.before)));
     }
     return h(
       "li",
       { class: "wo-change changed" },
-      `Comment changed in ‘${c.label}’: `,
+      `Text changed in ‘${c.label}’: `,
       h("del", null, quote(c.before)),
       " → ",
       h("ins", null, quote(c.after))
@@ -818,8 +813,8 @@
     state.preview = { id: wo.id, returnFocus: document.activeElement, saving: false };
 
     $("#woPreviewSummary").textContent = changes.length
-      ? `${woLabel} — ${plural(changes.length, "change")} pending · ${plural(commentCount, "comment")} after saving.`
-      : `${woLabel} — no pending changes. ${plural(commentCount, "comment")} will be ${
+      ? `${woLabel} — ${plural(changes.length, "change")} pending · ${plural(commentCount, "field")} filled after saving.`
+      : `${woLabel} — no pending changes. ${plural(commentCount, "field")} will be ${
           wo.status === "submitted" ? "kept (already submitted)" : "submitted as they are"
         }.`;
     const list = $("#woPreviewChanges");
@@ -1090,7 +1085,6 @@
       state.loadError = state.loaded ? state.loadError : "";
       renderList();
     } catch (e) {
-      // Clean up the half-created record so it doesn't linger server-side.
       if (created) fetch(`${API}/${created.id}`, { method: "DELETE" }).catch(() => {});
       entry.status = "error";
       entry.error = e.message;
@@ -1134,7 +1128,6 @@
       zone.classList.remove("dragover");
       addFiles(e.dataTransfer.files);
     });
-    // A PDF dropped outside the zone would make the browser navigate to it and lose unsaved work.
     ["dragover", "drop"].forEach((type) =>
       window.addEventListener(type, (e) => {
         if ($("#panel-workorders").classList.contains("active") && !zone.contains(e.target)) {
@@ -1159,7 +1152,6 @@
   }
 
   function bindGuards() {
-    // Capture phase: runs before app.js switches panels, so cancelling keeps the user here.
     $("#mainNav").addEventListener(
       "click",
       (e) => {
@@ -1174,7 +1166,7 @@
         const dirty = dirtyItems().length;
         if (!dirty) return;
         const ok = confirm(
-          `You have unsaved comments on ${plural(dirty, "work order")}.\n\n` +
+          `You have unsaved changes on ${plural(dirty, "work order")}.\n\n` +
             "They stay in this browser tab until you reload or close it, but they are not saved yet. Leave the Work Orders tab?"
         );
         if (!ok) {
